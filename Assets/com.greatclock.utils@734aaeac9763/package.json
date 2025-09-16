@@ -1,0 +1,18 @@
+{
+  "displayName": "GreatClock.Utils",
+  "name": "com.greatclock.utils",
+  "version": "1.0.0",
+  "unity": "2018.4",
+  "description": "util.",
+  "type": "library",
+  "keywords": [
+    "utils",
+    "timer",
+    "coroutine runner"
+  ],
+  "author": {
+    "name": "greatclock",
+    "email": "thegreatclock@gmail.com"
+  },
+  "_fingerprint": "734aaeac97634287b018fc81db8ae88d12842d26"
+}

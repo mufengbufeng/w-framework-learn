@@ -1,0 +1,17 @@
+{
+  "displayName": "GreatClock.UIManager",
+  "name": "com.greatclock.uimanager",
+  "version": "1.0.0",
+  "unity": "2018.4",
+  "description": "uimanager.",
+  "type": "library",
+  "keywords": [
+    "ui",
+    "uimanager"
+  ],
+  "author": {
+    "name": "greatclock",
+    "email": "thegreatclock@gmail.com"
+  },
+  "_fingerprint": "a89e86af22fb703ee2f281cb75354d5813581a07"
+}

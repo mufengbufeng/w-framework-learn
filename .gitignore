@@ -1,0 +1,14 @@
+/*.csproj
+/Library
+/obj
+/Temp
+/Logs
+/*.sln
+/*.vs
+/Assets/Common/*
+/*.vsconfig
+/HybridCLRData
+/Assets/StreamingAssets
+/Assets/StreamingAssets.meta
+/Repositories/UniTask
+/UserSettings

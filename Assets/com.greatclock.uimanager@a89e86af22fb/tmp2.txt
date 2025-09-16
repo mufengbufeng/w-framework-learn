@@ -1,0 +1,83 @@
+			}
+
+			public static void Cache(T ins) {
+				if (ins == null) { return; }
+				s_caches.AddLast(ins);
+			}
+
+			#endregion
+
+		}
+
+		private class UIInstanceStack : UIInstanceBase<UIInstanceStack, IUILogicStack> {
+
+			public int Index { get; private set; }
+
+			public object Group { get; set; }
+
+			private UIInstanceStack() { }
+
+			private int mIsFullScreen = 0;
+			public bool IsFullScreen {
+				get {
+					if (mIsFullScreen == 0) {
+						mIsFullScreen = Logic.IsFullScreen ? 1 : -1;
+					}
+					return mIsFullScreen > 0;
+				}
+			}
+
+			private int mAllowMultiple = 0;
+			public bool AllowMultiple {
+				get {
+					if (mAllowMultiple == 0) {
+						mAllowMultiple = Logic.AllowMultiple ? 1 : -1;
+					}
+					return mAllowMultiple > 0;
+				}
+			}
+
+			protected override Transform UIParent {
+				get {
+					return Root.ParentForUI;
+				}
+			}
+
+			static UIInstanceStack() {
+				s_instance_ctor = () => { return new UIInstanceStack(); };
+			}
+
+			public static UIInstanceStack Get(int index, string id, string prefabPath, IUILogicStack logic) {
+				UIInstanceStack ret = InternalGet(id, prefabPath, logic);
+				ret.Index = index;
+				ret.mAllowMultiple = 0;
+				ret.mIsFullScreen = 0;
+				return ret;
+			}
+
+		}
+
+		private class UIInstanceFixed : UIInstanceBase<UIInstanceFixed, IUILogicFixed> {
+
+			private UIInstanceFixed() { }
+
+			protected override Transform UIParent {
+				get {
+					return Root.ParentForUI;
+				}
+			}
+
+			static UIInstanceFixed() {
+				s_instance_ctor = () => { return new UIInstanceFixed(); };
+			}
+
+			public static UIInstanceFixed Get(string id, string prefabPath, IUILogicFixed logic) {
+				UIInstanceFixed ret = InternalGet(id, prefabPath, logic);
+				return ret;
+			}
+
+		}
+
+
+	}
+}

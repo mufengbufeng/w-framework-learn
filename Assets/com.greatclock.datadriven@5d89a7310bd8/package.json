@@ -1,0 +1,17 @@
+{
+  "displayName": "GreatClock.DataDriven",
+  "name": "com.greatclock.datadriven",
+  "version": "1.0.0",
+  "unity": "2018.4",
+  "description": "Great Events & Great Data Driven.",
+  "type": "library",
+  "keywords": [
+    "data-driven",
+    "events"
+  ],
+  "author": {
+    "name": "greatclock",
+    "email": "thegreatclock@gmail.com"
+  },
+  "_fingerprint": "5d89a7310bd81d74581a72cdea469bb3e7ad2299"
+}

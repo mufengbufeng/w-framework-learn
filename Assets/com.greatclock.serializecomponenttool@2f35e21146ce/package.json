@@ -1,0 +1,21 @@
+{
+  "displayName": "Serialize Component Tool",
+  "name": "com.greatclock.serializecomponenttool",
+  "version": "1.0.0",
+  "unity": "2018.4",
+  "description": "An easy way to access KEY GameObjects and Components in prefab.",
+  "type": "library",
+  "keywords": [
+    "serialize",
+    "component"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/greatclock/serialize_component_tool.git"
+  },
+  "author": {
+    "name": "greatclock",
+    "email": "thegreatclock@gmail.com"
+  },
+  "_fingerprint": "2f35e21146ce3a9f0cdf8eaef1a6ba4c5a808fbb"
+}

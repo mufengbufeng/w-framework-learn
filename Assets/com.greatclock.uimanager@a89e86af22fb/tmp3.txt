@@ -1,0 +1,120 @@
+- `Parent For UI`：所有UI[界面节点](#界面节点)将使用的父节点；
+- `Layer For Hide`：用于使用Layer[隐藏界面](#如何隐藏)时设置的不可见的Layer�?
+- `Sorting Order Min`、`Sorting Order Max`、`SortingOrder Range Per UI`、`Position Z Interval`：用于、层级和Z轴位置的计算参数�?
+- `Off Screen Position Delta`：移出屏幕范围的[隐藏方式](#如何隐藏)中，使用的位置偏移数值�?
+
+## 运行时初始化UI管理器需要的外部功能
+
+调用`UIManager.(IUILoader uiLoader, IUILoadingOverlay loadingOverlay, bool useLogicCache)`方法来初始化其所需要的外部功能�?
+
+### 界面开启参数获取及GameObject加载�?
+
+UI管理器中定义了`IUILoader`接口，项目需要实现其中的方法�?
+
+``` c#
+public interface IUILoader {
+    ParametersForUI GetParameterForUI(string id);
+    UniTask<GameObject> LoadUIObject(string path);
+    void UnloadUIObject(GameObject go);
+}
+```
+
+其中�?
+
+- `GetParameterForUI`用于以id指定界面方式[开启界面](#开启界面的api)时，获取全部[界面开启参数](#用于界面开启的参数)�?
+- `LoadUIObject`和`UnloadUIObject`用于加载和卸载prefab的方法�?
+
+### UI加载过程中屏蔽用户操作机�?
+
+`IUILoadingOverlay`接口定义�?
+
+``` csharp
+public interface IUILoadingOverlay {
+    void BeginLoading(string key);
+    void EndLoading(string key);
+}
+```
+
+### 是否使用界面逻辑实例缓存
+
+[界面逻辑](#界面逻辑)的实例可以重复使用，以减少`GC Alloc`。使用[界面逻辑](#界面逻辑)实例缓存时，应注意：
+
+- [界面逻辑](#界面逻辑)应在各[生命周期](#界面生命周期)结束的方法中，清理相应成员变量、注册侦听及各种状态�?
+- 将项目的[界面逻辑](#界面逻辑)实例改为使用缓存后，可能因已存在[界面逻辑](#界面逻辑)代码中存在上述问题而导致在第二次或以后开启同个界面时，存在各种不可预知的错误�?
+- 对内存和GC不敏感的项目，建议不要开启，以降低界面逻辑出错的可能�?
+
+## 定制UI基类
+
+UI管理器对UI[逻辑](#界面逻辑)类的要求为：
+
+- 实现`IUILogicStack`或`IUILogicFixed`接口�?
+- 应包含public无参构造函数�?
+
+此设计主要是为了方便项目对UI[逻辑](#界面逻辑)类的定制�?
+
+- 可根据项目的实际情况，自行设计UI[逻辑](#界面逻辑)类的继承关系�?
+- 方便项目对界面生命周期事件的封装、响应和二次委派处理�?
+
+推荐做法�?
+
+以实现`IUILogicBase`中`VisibleOperateType`属性和`OnCreate()`方法为例，[堆叠型](#堆叠型的界面)和[固定层级](#固定层级的界�?界面的共用基类的基类`UILogic`的写法为�?
+
+``` c#
+public abstract class UILogicBase : IUILogicBase {
+    ...
+    protected virtual eUIVisibleOperateType VisibleOperateType { get { return eUIVisibleOperateType.LayerMask; } }
+    ...
+    protected virtual bool OnCreate(object para) { return true; }
+    ...
+	eUIVisibleOperateType IUILogicBase.VisibleOperateType { get { return VisibleOperateType; } }
+	bool IUILogicBase.OnCreate(object para) {
+	    // do something ...
+	    return OnCreate(para);
+	}
+}
+```
+
+通过**显式实现接口**与重新定义同�?*虚方�?虚属�?*的方式，使得�?
+
+- [界面逻辑](#界面逻辑)类可以按需要来override相应的[生命周期方法](#生命周期方法)和[界面展示参数](#用于界面展示的参�?�?
+- 实现子类可响应[生命周期](#界面生命周期)事件的同时，基类也可根据项目需要，在显示实现接口的方法中进行相应处理，而子类在override方法或属性时无需关心是否需要调用`base`�?
+
+相应的[固定层级界面](#固定层级的界�?的基类：
+
+``` c#
+public abstract class UIFixedLogicBase : UILogicBase, IUILogicFixed {
+    protected abstract int SortingOrderBias { get; }
+    int IUILogicFixed.SortingOrderBias { get { return SortingOrderBias; } }
+}
+```
+
+[堆叠型界面](#堆叠型的界面)的基类：
+
+``` c#
+public abstract class UIStackLogicBase : UILogicBase, IUILogicStack {
+
+	protected virtual bool AllowMultiple { get { return false; } }
+	protected abstract bool IsFullScreen { get; }
+	protected abstract bool NewGroup { get; }
+	protected virtual void OnGetFocus() { }
+	
+	protected virtual bool OnESC() { return true; }
+	protected virtual void OnLoseFocus() { }
+
+	bool IUILogicStack.AllowMultiple { get { return AllowMultiple; } }
+	bool IUILogicStack.IsFullScreen { get { return IsFullScreen; } }
+	bool IUILogicStack.NewGroup { get { return NewGroup; } }
+
+	void IUIFocusable.OnGetFocus() { OnGetFocus(); }
+	void IUIFocusable.OnLoseFocus() { OnLoseFocus(); }
+	bool IUIFocusable.OnESC() { return OnESC(); }
+
+}
+```
+
+## 界面逻辑初始代码生成
+
+参考[初始界面逻辑代码生成工具](./README_code_generator.md)�?
+
+## 界面prefab资源合理性检�?
+
