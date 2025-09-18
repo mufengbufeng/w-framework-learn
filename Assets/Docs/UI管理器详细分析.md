@@ -159,6 +159,81 @@ sequenceDiagram
     Note over UI: 当两个阶段都完成时才打开
 ```
 
+## 关键源码走读
+
+### 初始化管线（`Runtime/UIManager.cs`, `Runtime/UIRoot.cs`）
+- `UIManager.Init` 负责保存 `IUILoader` 和可选的逻辑缓存字典，并在 `TryInit` 中等待 `UIRoot` 注入后才真正构造内部 `Processor`（`Runtime/UIManager.cs:11`）。
+- `UIRoot.Awake` 会在场景加载时立即调用 `UIManager.SetUIRoot`，将根 `Canvas`、父节点、层级范围等信息交给 UIManager 使用，并在 `Update` 中驱动 `UIManager.Update` 做 ESC 与屏幕变化检测（`Runtime/UIRoot.cs:28`）。
+- `InitCameraRange`、`CalculateUIPos` 会基于摄像机 near/far plane 及父节点坐标一次性推算 UI 层级所需的排序区间和 Z 轴区间，为后续实例快速布局提供缓存。
+
+### Open 流程核心（`Runtime/UIManager/UIManager.Internal.cs`）
+- `Processor.Open` 通过 `GetLogicInstance` 复用或创建界面逻辑，调用 `logic.OnCreate` 作为开场前置验证，失败时直接把逻辑塞回缓存避免浪费（`Runtime/UIManager/UIManager.Internal.cs:24`）。
+- 成功后会暂停焦点派发，区分 `IUILogicStack` 与 `IUILogicFixed` 两条支线：堆栈 UI 叠加 `Index` 并生成分组，固定 UI 则按 bias 推算基础排序层（`Runtime/UIManager/UIManager.Internal.cs:40`）。
+- `UIInstanceStack.Start`/`UIInstanceFixed.Start` 被触发后立即注册互斥冲突回调，初始化焦点条目，最后恢复焦点派发，保证新界面获取焦点时不会干扰旧界面清理。
+
+### 异步实例装配（`Runtime/UIManager/UIManager.UIInstance.cs`）
+- `UIInstanceBase.Start` 是整个生命周期的中心：先按 `OnPrepareCheck` 判断是否需要准备阶段，并行开启 `DoPrepare`（执行业务异步）和 `LoadUIObject`（加载 Prefab）。
+- 预制体加载完成后统一在 `RectTransform` 下设置父级、拉伸、自定义 Z 值，并交给 `UIPanelInstance` 接管可见性与排序，随后调用 `TryOpenUI` 判定两条异步链是否都成功。
+- `TryOpenUI` 成功时依次触发 `Logic.OnOpen`、`OnShow` 以及外部 `IUIEventHandler` 事件；任何失败、超时或 Prefab 加载异常都会回调 `UIManager.CloseGroup` 走统一关闭流程。
+
+#### 函数调用流程图
+
+```mermaid
+sequenceDiagram
+    participant Caller as UIManager.Open*
+    participant Processor as Processor.Open
+    participant Instance as UIInstanceBase.Start
+    participant Loader as IUILoader
+    participant Logic as IUILogic
+
+    Caller->>Processor: OpenInternal(cfg, parameter, handler)
+    Processor->>Logic: GetLogicInstance / OnCreate()
+    alt Logic返回true
+        Processor->>Instance: Start(baseSortingOrder, posZ, handler)
+        Instance->>Logic: OnPrepareCheck()
+        par 业务准备
+            Instance->>Logic: OnPrepareExecute()
+            Logic-->>Instance: 准备结果
+        and 预制体加载
+            Instance->>Loader: LoadUIObject(prefab)
+            Loader-->>Instance: GameObject
+        end
+        Instance->>Instance: TryOpenUI()
+        alt 准备&加载成功
+            Instance->>Logic: OnOpen(go, sortingOrder)
+            Instance->>Logic: OnShow()
+        else 任一失败
+            Instance->>UIManager: CloseGroup(logic)
+        end
+    else Logic返回false
+        Processor->>Processor: CacheLogicInstance(logic)
+    end
+```
+
+### 显示策略与 UI 容器（`Runtime/UIPanelInstance.cs`）
+- `UIPanelInstance` 把界面渲染控制收敛到 `DoShow/DoHide`，根据 `eUIVisibleOperateType` 决定是改 `SetActive`、切换 Layer 还是把 UI 挪出视野，从而适配不同的隐藏策略。
+- 通过 `SortingOrderModifier` 统一设置子 `Canvas`/`Renderer` 的 Sorting Order，并在 `SetPosZ` 中维持与摄像机的空间距离，解决 Unity UI 中排序和遮挡的常见问题。
+
+### 冲突与堆栈管理（`Runtime/UIManager/UIManager.Internal.cs`）
+- `ProcessStackConflicts` 针对堆栈 UI 处理三类互斥：同 ID 且不可重复、同互斥组的并行界面、以及全屏界面遮挡下层显示；逻辑全部在数组中原地标记并按需回收实例。
+- 固定界面共享 `ProcessFixedConflicts`，通过互斥组或相同 ID 保证场上只存在一份 HUD/弹窗。
+- `TrimStack` 会在关闭后回收堆栈尾部的空洞，并对被全屏隐藏的界面调用 `Resume` 重新显示，实现真正的「栈顶全屏遮挡、关闭后恢复」体验。
+
+### 排序与空间定位（`Runtime/UIManager/UIManager.Internal.cs`）
+- `GetStackSortingOrderAndZ` 按栈索引计算排序号（`SortingOrderMin + Range × (index + 2)`）与本地 Z 值，让后开的界面自然浮在前方。
+- `GetFixedSortingOrderAndZ` 则支持正负 bias：正值向上偏移，负值锁在顶层附近，便于把顶部公告、底部 HUD 等放入不同的稳定层级。
+- `ResetPositionZ` 在摄像机或屏幕参数变化时遍历所有实例重新写入 Z 值，保持 UI 在正交相机下的显示一致性。
+
+### 焦点系统实现（`Runtime/UIManager/UIManager.Focus.cs`）
+- `FocusMgr` 以 `KeyedPriorityQueue` 维护 `IUIFocusable`，排序值直接来自 UI 的基础 Sorting Order，保证视觉在前的界面先获得焦点。
+- `HoldDispatchFocusChange` / `TryDispatchFocusChange` 组合实现焦点变更的批处理：一次 Open/Close 中可能有多次增删，最终只触发一次 `OnGetFocus`/`OnLoseFocus`。
+- `DynamicFocusAgent` 允许实现 `IUIDynamicFocusable` 的界面在内部模块（如弹出的子窗口）需要时临时抢占焦点，又能在完成后主动释放。
+
+### 逻辑与实例缓存设计
+- `GetLogicInstance` / `CacheLogicInstance` 通过类型字典缓存 `IUILogicBase`，重复打开界面时可以跳过构造成本（`Runtime/UIManager/UIManager.Internal.cs:195`）。
+- `UIInstanceBase.InternalGet` 使用 `LinkedList` 复用 `UIInstanceStack` / `UIInstanceFixed`，对仍在异步中的实例做过滤，避免并发问题。
+- `SortingOrderModifier.Cache` 和 `UIInstanceBase.Cache` 统一释放资源，配合 `s_loading_overlay` 可插拔的 Loading 逻辑，实现真正的「开、关、复用」闭环。
+
 ## UI层级管理系统
 
 ### 层级架构

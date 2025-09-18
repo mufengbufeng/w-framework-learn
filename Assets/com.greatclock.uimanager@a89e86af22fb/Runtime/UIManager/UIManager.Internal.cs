@@ -23,10 +23,12 @@ namespace GreatClock.Common.UI {
 			}
 
 			public bool Open(ParametersForUI cfg, object parameter, IUIEventHandler handler) {
+
 				IUILogicBase logic = GetLogicInstance(cfg.logic_type);
 				if (logic == null) { return false; }
 				bool toopen = false;
 				try {
+					// logic.OnCreate
 					toopen = logic.OnCreate(parameter);
 				} catch (Exception e) {
 					Debug.LogException(e);
@@ -57,16 +59,19 @@ namespace GreatClock.Common.UI {
 					}
 					mStack.Add(uiStack);
 					GetStackSortingOrderAndZ(uiStack.Index, out baseSortingOrder, out posZ);
+					// UIInstanceStack OnStart
 					uiStack.Start(baseSortingOrder, posZ, handler, mProcessStackConflicts);
 				} else if (logic is IUILogicFixed fixedLogic) {
 					UIInstanceFixed uiFixed = UIInstanceFixed.Get(cfg.id, cfg.prefab_path, fixedLogic);
 					GetFixedSortingORderAndZ(uiFixed.Logic.SortingOrderBias, out baseSortingOrder, out posZ);
+					// UIInstanceStack OnStart
 					uiFixed.Start(baseSortingOrder, posZ, handler, mProcessFixedConflicts);
 					mFixed.Add(uiFixed);
 				} else {
 					Debug.LogError("[UIManager] Invalid UI Logic Type !");
 					return false;
 				}
+
 				mFocusMgr.AddFocusable(logic as IUIFocusable, baseSortingOrder);
 				mFocusMgr.TryDispatchFocusChange();
 				return true;
