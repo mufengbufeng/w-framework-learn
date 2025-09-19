@@ -34,6 +34,7 @@ namespace GreatClock.Common.UI {
 				} else {
 					PrepareDone(ePrepareResult.Success);
 				}
+				// 加载
 				GameObject go = await s_uiloader.LoadUIObject(mPrefabPath);
 				if (go == null) {
 					mLoadResult = -1;
@@ -46,6 +47,7 @@ namespace GreatClock.Common.UI {
 				}
 				mLoadResult = 1;
 				RectTransform rt = go.transform as RectTransform;
+				// 如果没有 RectTransform 组件，则添加一个
 				if (rt == null) { rt = go.AddComponent<RectTransform>(); }
 				Transform parent = UIParent;
 				rt.SetParent(parent);
@@ -59,6 +61,7 @@ namespace GreatClock.Common.UI {
 				rt.anchorMax = Vector2.one;
 				rt.anchoredPosition3D = pos;
 				rt.sizeDelta = Vector2.zero;
+				// initialize
 				mUI.Init(go, Logic.VisibleOperateType);
 				mUI.SetBaseSortingOrder(baseSortingOrder);
 				mUI.SetPosZ(posZ);
